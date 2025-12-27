@@ -1,0 +1,206 @@
+
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cayo Perico – Calculateur Avancé</title>
+<style>
+body {
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, Arial, sans-serif;
+  background:#0b1220;
+  color:#e5e7eb;
+  margin:0;
+  padding:16px;
+}
+h1,h2,h3 { color:#38bdf8; }
+.card {
+  background:#020617;
+  border-radius:14px;
+  padding:16px;
+  margin-bottom:16px;
+  box-shadow: 0 0 0 1px #1e293b;
+}
+label { display:block; margin-top:10px; font-size:14px; }
+input,select,button {
+  width:100%;
+  padding:10px;
+  margin-top:4px;
+  border-radius:10px;
+  border:none;
+  font-size:15px;
+}
+button {
+  background:#38bdf8;
+  color:#020617;
+  font-weight:700;
+}
+button:disabled {
+  background:#475569;
+  color:#94a3b8;
+}
+.player {
+  margin-top:10px;
+  padding:10px;
+  background:#020617;
+  border-radius:10px;
+  border:1px solid #1e293b;
+}
+.ok{color:#22c55e;} .warn{color:#facc15;} .err{color:#ef4444;}
+.bar {
+  height:8px;
+  background:#1e293b;
+  border-radius:6px;
+  overflow:hidden;
+  margin-top:6px;
+}
+.fill {
+  height:100%;
+  background:#22c55e;
+}
+.small { font-size:12px; color:#94a3b8; }
+</style>
+</head>
+<body>
+
+<h1>Calculateur Cayo Perico</h1>
+<p class="small">Version améliorée – claire, fidèle, évolutive</p>
+
+<div class="card">
+<h2>Configuration</h2>
+
+<label>Nombre de joueurs</label>
+<select id="players" onchange="updatePercents()">
+<option value="1">1</option>
+<option value="2">2</option>
+<option value="3">3</option>
+<option value="4">4</option>
+</select>
+
+<label>Objectif principal</label>
+<select id="primary">
+<option value="1100000">Tequila – 1 100 000 $</option>
+<option value="1300000">Rubis – 1 300 000 $</option>
+<option value="1430000">Obligations – 1 430 000 $</option>
+<option value="1650000">Diamant rose – 1 650 000 $</option>
+<option value="1900000">Panthère – 1 900 000 $</option>
+</select>
+
+<label><input type="checkbox" id="hard"> Difficulté HARD (+10 %)</label>
+<label><input type="checkbox" id="elite"> Défi élite (+100 000 $)</label>
+</div>
+
+<div class="card">
+<h2>Objectifs secondaires disponibles</h2>
+<label>Or</label><input type="number" id="gold" min="0" value="0">
+<label>Cocaïne</label><input type="number" id="coke" min="0" value="0">
+<label>Tableaux</label><input type="number" id="art" min="0" value="0">
+<label>Cash</label><input type="number" id="cash" min="0" value="0">
+</div>
+
+<div class="card">
+<h2>Pourcentages de fin</h2>
+<div id="percentages"></div>
+</div>
+
+<div class="card">
+<button id="auto">Remplissage automatique optimal</button>
+<div id="status"></div>
+</div>
+
+<div class="card">
+<h2>Résultat par joueur</h2>
+<div id="playersResult"></div>
+</div>
+
+<script>
+const VALUES = {
+ gold:{units:2,value:332000},
+ coke:{units:1.5,value:220000},
+ art:{units:1.5,value:190000},
+ cash:{units:0.75,value:90000}
+};
+
+function updatePercents() {
+ const p = parseInt(players.value);
+ let html = "";
+ let base = Math.floor(100/p);
+ let rest = 100 - base*p;
+ for (let i=1;i<=p;i++) {
+  let v = base + (i===1 ? rest : 0);
+  html += "Joueur "+i+" (%)<input type='number' id='pct"+i+"' value='"+v+"'>";
+ }
+ document.getElementById("percentages").innerHTML = html;
+}
+updatePercents();
+
+document.getElementById("auto").onclick = () => {
+ const p = parseInt(players.value);
+ let capacity = p * 3;
+ let remaining = capacity;
+
+ let available = {
+  gold:+gold.value, coke:+coke.value, art:+art.value, cash:+cash.value
+ };
+
+ let pct = [], pctSum = 0;
+ for (let i=1;i<=p;i++) {
+  let v = +document.getElementById("pct"+i).value;
+  pct.push(v); pctSum += v;
+ }
+ if (pctSum !== 100) {
+  status.innerHTML = "<p class='err'>Les pourcentages doivent faire 100 %</p>";
+  return;
+ }
+
+ let taken = {gold:0,coke:0,art:0,cash:0};
+ const order = ["gold","coke","art","cash"];
+
+ for (let o of order) {
+  while (available[o] > 0 && remaining >= VALUES[o].units) {
+   taken[o]++; available[o]--; remaining -= VALUES[o].units;
+  }
+ }
+
+ let secondaryTotal = 0;
+ for (let k in taken) secondaryTotal += taken[k]*VALUES[k].value;
+
+ let primary = +primary.value;
+ if (hard.checked) primary *= 1.1;
+ if (elite.checked) primary += 100000;
+
+ let total = primary + secondaryTotal;
+
+ status.innerHTML =
+  "<p class='ok'>Capacité utilisée : "+(capacity-remaining).toFixed(2)+"/"+capacity+" unités</p>"+
+  "<p>Total braquage : <strong>"+Math.round(total).toLocaleString()+" $</strong></p>";
+
+ let pool = [];
+ for (let k in taken) for (let i=0;i<taken[k];i++) pool.push(k);
+
+ let idx = 0;
+ let out = "";
+ for (let i=1;i<=p;i++) {
+  let used = 0, secGain = 0, items = {};
+  while (idx < pool.length && used + VALUES[pool[idx]].units <= 3.001) {
+   let it = pool[idx];
+   items[it] = (items[it]||0)+1;
+   used += VALUES[it].units;
+   secGain += VALUES[it].value;
+   idx++;
+  }
+  let finalGain = Math.round(total * pct[i-1] / 100);
+  out += "<div class='player'><strong>Joueur "+i+"</strong><br>";
+  for (let it in items) out += it+" x"+items[it]+"<br>";
+  out += "<div class='bar'><div class='fill' style='width:"+(used/3*100)+"%'></div></div>";
+  out += "Secondaires : "+secGain.toLocaleString()+" $<br>";
+  out += "Part : "+pct[i-1]+" %<br>";
+  out += "<strong>Gain final : "+finalGain.toLocaleString()+" $</strong></div>";
+ }
+
+ playersResult.innerHTML = out;
+};
+</script>
+
+</body>
+</html>
